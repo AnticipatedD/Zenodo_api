@@ -1,0 +1,222 @@
+# SPDX-FileCopyrightText: 2023 CERN
+# SPDX-License-Identifier: GPL-3.0-or-later
+"""Test deposit metadata (REST API)."""
+
+import json
+
+import dictdiffer
+import pytest
+
+
+def test_invalid_create(test_app, client_with_login, deposit_url, headers):
+    """Test invalid deposit creation.
+
+    Test ported from https://github.com/zenodo/zenodo/blob/master/tests/unit/deposit/test_api_metadata.py.
+    """
+    client = client_with_login
+
+    # Invalid deposits.
+    cases = [
+        dict(unknownkey="data", metadata={}),
+    ]
+
+    for case in cases:
+        res = client.post(deposit_url, data=json.dumps(case), headers=headers)
+        assert res.status_code == 400, case
+
+    # No deposits were created
+    res = client.get(deposit_url, headers=headers)
+    assert len(res.json) == 0
+
+
+def test_input_output(
+    test_app,
+    client_with_login,
+    headers,
+    deposit_url,
+    test_data,
+    expected_record_metadata,
+):
+    """Rough validation of input against output data.
+
+    Test ported from https://github.com/zenodo/zenodo/blob/master/tests/unit/deposit/test_api_metadata.py.
+    """
+    client = client_with_login
+
+    # Create
+    res = client.post(deposit_url, json=test_data, headers=headers)
+    assert res.status_code == 201
+    links = res.json["links"]
+
+    # Get serialization.
+    res = client.get(links["self"], headers=headers)
+    assert res.status_code == 200
+    data = res.json
+
+    # - fix known differences.
+    # DOI and recid have 2 as control number, since Concept DOI/recid are
+    # registered first
+    recid = data["id"]
+    expected_record_metadata.update(
+        {
+            "prereserve_doi": {"doi": f"10.5281/zenodo.{recid}", "recid": recid},
+        }
+    )
+
+    differences = list(
+        dictdiffer.diff(
+            data["metadata"],
+            expected_record_metadata,
+            # doi is returned as a top level key (and not inside metadata)
+            ignore={"doi"},
+        )
+    )
+
+    assert not differences
+
+
+@pytest.mark.parametrize(
+    "related_identifiers,expected_field,expected_message",
+    [
+        (
+            "not-a-list",
+            "metadata.related_identifiers",
+            "related_identifiers must be a list",
+        ),
+        (
+            ["not-a-dict"],
+            "metadata.related_identifiers.0",
+            "Each related identifier must be an object",
+        ),
+        (
+            [{"identifier": "10.1234/foo", "relation": 123}],
+            "metadata.related_identifiers.0.relation",
+            "relation must be a string",
+        ),
+    ],
+)
+def test_malformed_related_identifiers(
+    test_app,
+    client_with_login,
+    deposit_url,
+    headers,
+    related_identifiers,
+    expected_field,
+    expected_message,
+):
+    """Test malformed related_identifiers validation."""
+    data = {
+        "metadata": {
+            "title": "Test",
+            "upload_type": "dataset",
+            "description": "Test description",
+            "creators": [{"name": "Test User"}],
+            "related_identifiers": related_identifiers,
+        }
+    }
+    res = client_with_login.post(deposit_url, json=data, headers=headers)
+    assert res.status_code == 400
+    errors = res.json["errors"]
+    assert len(errors) == 1
+    assert errors[0]["field"] == expected_field
+    assert expected_message in errors[0]["messages"][0]
+
+
+@pytest.mark.parametrize(
+    "license_value,expected_message",
+    [
+        (123, "Invalid license value provided"),
+        (["cc-by-4.0"], "Invalid license value provided"),
+    ],
+)
+def test_malformed_license(
+    test_app, client_with_login, deposit_url, headers, license_value, expected_message
+):
+    """Test malformed license validation."""
+    data = {
+        "metadata": {
+            "title": "Test",
+            "upload_type": "dataset",
+            "description": "Test description",
+            "creators": [{"name": "Test User"}],
+            "license": license_value,
+        }
+    }
+    res = client_with_login.post(deposit_url, json=data, headers=headers)
+    assert res.status_code == 400
+    errors = res.json["errors"]
+    assert len(errors) == 1
+    assert errors[0]["field"] == "metadata.license"
+    assert expected_message in errors[0]["messages"][0]
+
+
+@pytest.mark.parametrize(
+    "communities",
+    [
+        {"identifier": "my-community"},  # object instead of array
+        [{"id": "my-community"}],  # wrong key ("id" instead of "identifier")
+        ["my-community"],  # array of strings instead of objects
+    ],
+)
+def test_malformed_communities(
+    test_app, client_with_login, deposit_url, headers, communities
+):
+    """Communities must be an array of objects with an 'identifier' key."""
+    data = {
+        "metadata": {
+            "title": "Test",
+            "upload_type": "dataset",
+            "description": "Test description",
+            "creators": [{"name": "Test User"}],
+            "communities": communities,
+        }
+    }
+    res = client_with_login.post(deposit_url, json=data, headers=headers)
+    assert res.status_code == 400
+    errors = res.json["errors"]
+    assert errors[0]["field"] == "communities"
+    assert "identifier" in errors[0]["messages"][0]
+
+
+@pytest.mark.parametrize(
+    "communities",
+    [
+        [{"identifier": "c1"}],
+        [{"identifier": "c1"}, {"identifier": "c2"}],
+    ],
+)
+def test_valid_communities(
+    test_app, client_with_login, deposit_url, headers, communities
+):
+    """Valid communities: an array of objects with an 'identifier' key."""
+    data = {
+        "metadata": {
+            "title": "Test",
+            "upload_type": "dataset",
+            "description": "Test description",
+            "creators": [{"name": "Test User"}],
+            "communities": communities,
+        }
+    }
+    res = client_with_login.post(deposit_url, json=data, headers=headers)
+    assert res.status_code == 201
+    returned = {c["identifier"] for c in res.json["metadata"]["communities"]}
+    assert returned == {c["identifier"] for c in communities}
+
+
+@pytest.mark.parametrize("license_value", ["cc-by-4.0", {"id": "cc-by-4.0"}])
+def test_valid_license(
+    test_app, client_with_login, deposit_url, headers, license_value
+):
+    """Test valid license formats (string and dict with id)."""
+    data = {
+        "metadata": {
+            "title": "Test",
+            "upload_type": "dataset",
+            "description": "Test description",
+            "creators": [{"name": "Test User"}],
+            "license": license_value,
+        }
+    }
+    res = client_with_login.post(deposit_url, json=data, headers=headers)
+    assert res.status_code == 201
