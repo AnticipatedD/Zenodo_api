@@ -1,2 +1,68 @@
+<div align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://about.zenodo.org/static/img/logos/zenodo-white-border.svg">
+    <source media="(prefers-color-scheme: light)" srcset="https://about.zenodo.org/static/img/logos/zenodo-black-border.svg">
+    <img alt="Zenodo logo" src="https://about.zenodo.org/static/img/logos/zenodo-white-border.svg" width="500">
+  </picture>
+</div>
+
+## Development quick start
+
+### Prerequisites
+
+- [`uv`](https://docs.astral.sh/uv/getting-started/installation/#standalone-installer)
+- [Docker](https://docs.docker.com/get-docker/)
+- [Node.js 24.x](https://nodejs.org/) and [`pnpm` 11.x](https://pnpm.io/installation)
+- [`libvips-dev`](https://www.libvips.org/install.html)
+
+### Setup
+
+Run the following commands:
+
+```bash
+git clone https://github.com/zenodo/zenodo-rdm.git
+cd zenodo-rdm
+uv tool install invenio-cli
+invenio-cli check-requirements --development
+invenio-cli install
+invenio-cli services setup
+invenio-cli run
+```
+
+### Update dependencies
+
+#### Python
+
+1. Run `invenio-cli packages lock`
+2. (Optional) Use [`changelog.py`](https://github.com/slint/changelog.py) to generate the commit message via `changelog-py --package-filter "^invenio" --show-major-bumps --since HEAD`
+3. Commit the updated `uv.lock`
+
+> [!TIP]
+> To selectively update a specific package, you can use:
+>
+> ```bash
+> uv lock --upgrade-package <package-name>
+> ```
+
+#### JavaScript
+
+1. Run `invenio-cli assets lock`
+2. Commit the updated `pnpm-lock.yaml` and `package.json`
+
+## Tests
+
+Tests can be run by activating the `uv` virtual env first:
+
+```bash
+cd zenodo-rdm
+source .venv/bin/activate
+(zenodo-rdm-app)$ ./run-tests.sh
+```
+
 # Zenodo_api
-This app will:   1. Authenticate with Zenodo using your clientid and clientsecret.   2. Get an access token.   3. Use the token to call Zenodo’s API and create deposits.  4. Pull artifacts (e.g., release tarballs, documentation) from your GitHub repo.
+
+This app will: 
+- Authenticate with Zenodo using your clientid and clientsecret.
+- Get an access token.
+- Use the token to call Zenodo’s API and create deposits.
+- Pull artifacts (e.g., release tarballs, documentation) from anyone deploying from their GitHub repo.
