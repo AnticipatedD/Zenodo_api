@@ -58,3 +58,15 @@ cd zenodo-rdm
 source .venv/bin/activate
 (zenodo-rdm-app)$ ./run-tests.sh
 ```
+---
+
+# Zenodo_api
+
+This app will: 
+- Authenticate with Zenodo using your clientid and clientsecret.
+- Get an access token.
+- Use the token to call Zenodo’s API and create deposits.
+- Pull artifacts (e.g., release tarballs, documentation) from anyone deploying from their GitHub repo.
+
+---
+Copyright © 2026 MD ABUL HOSSAIN. All Rights Reserved.
