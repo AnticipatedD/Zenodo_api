@@ -1,0 +1,26 @@
+[
+  {
+    "person_or_org": {
+      "type": "personal",
+      "family_name": "Hossain",
+      "given_name": "Md. Abul",
+      "identifiers": [
+        {
+          "scheme": "orcid",
+          "identifier": "0009-0004-4378-5298"
+        }
+      ]
+    },
+    "affiliations": [
+      {
+        "name": "CERN"
+      }
+    ]
+  },
+  {
+    "person_or_org": {
+      "type": "organizational",
+      "name": "Open Research Europe"
+    }
+  }
+]
